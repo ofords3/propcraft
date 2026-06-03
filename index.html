@@ -38,14 +38,16 @@ textarea::placeholder{color:#b8b3aa}
 .box{background:var(--white);border:1.5px solid var(--border);border-radius:10px;padding:24px 28px;font-family:'Instrument Serif',serif;font-size:16px;line-height:1.9;white-space:pre-wrap}
 .paywall{background:var(--ink);color:var(--paper);border-radius:12px;padding:36px 28px;text-align:center;margin-top:36px}
 .paywall h2{font-family:'Instrument Serif',serif;font-size:24px;margin-bottom:10px}
-.paywall p{color:#a09a90;font-size:13px;margin-bottom:24px;line-height:1.6}
-.plans{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin-bottom:20px}
-.plan{background:#1e1c19;border:1px solid #3a3830;border-radius:10px;padding:18px 24px;cursor:pointer;position:relative}
-.plan.sel{border-color:var(--accent)}
-.ptag{position:absolute;top:-9px;left:50%;transform:translateX(-50%);background:var(--accent);font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;padding:2px 9px;border-radius:100px;white-space:nowrap}
-.pamt{font-size:26px;font-weight:600;color:#fff}
-.punit{font-size:11px;color:#6b6560;margin-top:3px}
-.paybtn{background:var(--accent);color:#fff;border:none;border-radius:8px;padding:13px 28px;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;cursor:pointer}
+.paywall p{color:#a09a90;font-size:13px;margin-bottom:20px;line-height:1.7}
+.steps{background:#1a1814;border-radius:8px;padding:14px 16px;font-size:12px;color:#a09a90;line-height:2.2;margin-bottom:16px;text-align:left}
+.wallet-box{background:#1a1814;border:1px solid #3a3830;border-radius:8px;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px}
+.wallet-addr{font-family:monospace;font-size:11px;color:#a09a90;word-break:break-all;text-align:left}
+.copy-addr{background:var(--accent);color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:12px;cursor:pointer;white-space:nowrap;flex-shrink:0}
+.tg-link{display:block;background:#1a1814;border:1px solid #2a9d5c;border-radius:8px;padding:12px;color:#2a9d5c;font-size:13px;text-decoration:none;margin-bottom:16px}
+.divider{color:#3a3830;margin:16px 0;font-size:12px}
+.code-row{display:flex;gap:8px}
+.code-input{flex:1;background:#1a1814;border:1px solid #3a3830;border-radius:8px;padding:11px 14px;font-family:monospace;font-size:13px;color:#fff;outline:none}
+.code-btn{background:#2a6dd4;color:#fff;border:none;border-radius:8px;padding:11px 18px;font-size:13px;font-weight:600;cursor:pointer}
 .cnote{font-size:11px;color:#6b6560;margin-top:12px}
 .footer{margin-top:56px;padding-top:20px;border-top:1px solid var(--border);display:flex;justify-content:space-between;font-size:12px;color:var(--muted)}
 </style>
@@ -53,9 +55,13 @@ textarea::placeholder{color:#b8b3aa}
 <body>
 <div id="root"></div>
 <script type="text/babel">
-const GROQ_KEY = "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";
-const PAY_LINK = "https://nowpayments.io";
+
+const GROQ_KEY = "اینجا_کلید_Groq_بذار";
+const WALLET = "0xEf62bb63Bec2179789F6b2787a771E6Fa410cB27";
+const TELEGRAM = "https://t.me/jewelDark";
 const FREE_LIMIT = 3;
+const VALID_CODES = ["PROP-JUN26","PROP-JUL26","PROP-AUG26"];
+
 const {useState,useEffect,useRef} = React;
 const TONES = ["Professional","Friendly","Confident","Creative","Concise"];
 
@@ -66,29 +72,58 @@ function App(){
   const [result,setResult]=useState("");
   const [loading,setLoading]=useState(false);
   const [uses,setUses]=useState(0);
+  const [unlocked,setUnlocked]=useState(false);
   const [copied,setCopied]=useState(false);
-  const [plan,setPlan]=useState("monthly");
+  const [addrCopied,setAddrCopied]=useState(false);
+  const [code,setCode]=useState("");
+  const [codeErr,setCodeErr]=useState(false);
   const ref=useRef(null);
 
-  useEffect(()=>{setUses(parseInt(localStorage.getItem("pc_u")||"0"))},[]);
-  const locked=uses>=FREE_LIMIT;
+  useEffect(()=>{
+    const u=parseInt(localStorage.getItem("pc_u")||"0");
+    const ul=localStorage.getItem("pc_unlocked")==="true";
+    setUses(u);
+    setUnlocked(ul);
+  },[]);
+
+  const locked=!unlocked && uses>=FREE_LIMIT;
+
+  const unlock=()=>{
+    if(VALID_CODES.includes(code.trim().toUpperCase())){
+      localStorage.setItem("pc_unlocked","true");
+      setUnlocked(true);
+      alert("✅ Unlocked! You now have unlimited proposals.");
+    } else {
+      setCodeErr(true);
+      setTimeout(()=>setCodeErr(false),2000);
+    }
+  };
 
   const gen=async()=>{
     if(!job.trim()||!bg.trim()||locked)return;
     setLoading(true);setResult("");
     const prompt=`Write a compelling ${tone} freelance proposal.\nJob: ${job}\nBackground: ${bg}\nRules: 150-250 words, hook opening, specific examples, CTA. Write ONLY the proposal.`;
     try{
-      const r=await fetch("https://api.groq.com/openai/v1/chat/completions",{method:"POST",headers:{"Content-Type":"application/json","Authorization":`Bearer ${GROQ_KEY}`},body:JSON.stringify({model:"llama-3.3-70b-versatile",messages:[{role:"user",content:prompt}],max_tokens:600,temperature:0.8})});
+      const r=await fetch("https://api.groq.com/openai/v1/chat/completions",{
+        method:"POST",
+        headers:{"Content-Type":"application/json","Authorization":`Bearer ${GROQ_KEY}`},
+        body:JSON.stringify({model:"llama-3.3-70b-versatile",messages:[{role:"user",content:prompt}],max_tokens:600,temperature:0.8})
+      });
       const d=await r.json();
       const t=d.choices?.[0]?.message?.content||"Error. Try again.";
       setResult(t.trim());
-      const n=uses+1;setUses(n);localStorage.setItem("pc_u",n);
+      if(!unlocked){
+        const n=uses+1;
+        setUses(n);
+        localStorage.setItem("pc_u",n);
+      }
       setTimeout(()=>ref.current?.scrollIntoView({behavior:"smooth"}),100);
     }catch(e){setResult("Connection error.");}
     setLoading(false);
   };
 
-  const copy=()=>{navigator.clipboard.writeText(result);setCopied(true);setTimeout(()=>setCopied(false),2000)};
+  const copyResult=()=>{navigator.clipboard.writeText(result);setCopied(true);setTimeout(()=>setCopied(false),2000)};
+  const copyAddr=()=>{navigator.clipboard.writeText(WALLET);setAddrCopied(true);setTimeout(()=>setAddrCopied(false),2000)};
 
   return(
     <div className="app">
@@ -99,42 +134,97 @@ function App(){
 
       <div className="usage">
         <div style={{display:"flex",alignItems:"center",gap:10}}>
-          <div className="dots">{[0,1,2].map(i=><div key={i} className={`dot${i<uses?" on":""}`}/>)}</div>
-          <span style={{color:"var(--muted)",fontSize:13}}><strong style={{color:"var(--ink)"}}>{Math.max(0,FREE_LIMIT-uses)}</strong> free proposals left</span>
+          <div className="dots">
+            {[0,1,2].map(i=><div key={i} className={`dot${i<uses&&!unlocked?" on":""}`}/>)}
+          </div>
+          <span style={{color:"var(--muted)",fontSize:13}}>
+            {unlocked
+              ? <strong style={{color:"#2a9d5c"}}>✓ Unlimited access</strong>
+              : <><strong style={{color:"var(--ink)"}}>{Math.max(0,FREE_LIMIT-uses)}</strong> free proposals left</>
+            }
+          </span>
         </div>
-        <span onClick={()=>{setJob("Need a React developer for a SaaS dashboard. Budget $800, 2 weeks.");setBg("5 years React. Built 20+ dashboards. Expert in Recharts, Firebase.");}} style={{fontSize:12,color:"#2a6dd4",cursor:"pointer"}}>Load example →</span>
+        <span onClick={()=>{setJob("Need a React developer for a SaaS dashboard. Budget $800, 2 weeks.");setBg("5 years React. Built 20+ dashboards. Expert in Recharts, Firebase.");}}
+          style={{fontSize:12,color:"#2a6dd4",cursor:"pointer"}}>
+          Load example →
+        </span>
       </div>
 
       {!locked&&<>
-        <div className="blk"><div className="lbl">Job Description</div><textarea rows={5} placeholder="Paste the job post here..." value={job} onChange={e=>setJob(e.target.value)}/></div>
-        <div className="blk"><div className="lbl">Your Background</div><textarea rows={4} placeholder="Your skills and experience..." value={bg} onChange={e=>setBg(e.target.value)}/></div>
-        <div className="blk"><div className="lbl">Tone</div><div className="tones">{TONES.map(t=><button key={t} className={`tbtn${tone===t?" on":""}`} onClick={()=>setTone(t)}>{t}</button>)}</div></div>
-        <button className="genbtn" onClick={gen} disabled={loading||!job.trim()||!bg.trim()}>{loading?"Writing...":"✦ Generate Proposal"}</button>
+        <div className="blk">
+          <div className="lbl">Job Description</div>
+          <textarea rows={5} placeholder="Paste the job post here..." value={job} onChange={e=>setJob(e.target.value)}/>
+        </div>
+        <div className="blk">
+          <div className="lbl">Your Background</div>
+          <textarea rows={4} placeholder="Your skills and experience..." value={bg} onChange={e=>setBg(e.target.value)}/>
+        </div>
+        <div className="blk">
+          <div className="lbl">Tone</div>
+          <div className="tones">
+            {TONES.map(t=><button key={t} className={`tbtn${tone===t?" on":""}`} onClick={()=>setTone(t)}>{t}</button>)}
+          </div>
+        </div>
+        <button className="genbtn" onClick={gen} disabled={loading||!job.trim()||!bg.trim()}>
+          {loading?"Writing...":"✦ Generate Proposal"}
+        </button>
       </>}
 
       {(loading||result)&&<div className="out" ref={ref}>
         <div className="out-hd">
           <div className="out-title">Your Proposal</div>
-          {result&&<button className="copybtn" onClick={copy}>{copied?"✓ Copied!":"Copy"}</button>}
+          {result&&<button className="copybtn" onClick={copyResult}>{copied?"✓ Copied!":"Copy"}</button>}
         </div>
         <div className="box">{loading?"Writing your proposal...":result}</div>
       </div>}
 
       {locked&&<div className="paywall">
         <h2>You've used all 3 free proposals</h2>
-        <p>Upgrade to keep winning clients.<br/>Pay with crypto — works worldwide.</p>
-        <div className="plans">
-          <div className={`plan${plan==="payg"?" sel":""}`} onClick={()=>setPlan("payg")}>{plan==="payg"&&<div className="ptag">Selected</div>}<div className="pamt">$2</div><div className="punit">per proposal</div></div>
-          <div className={`plan${plan==="monthly"?" sel":""}`} onClick={()=>setPlan("monthly")}>{plan==="monthly"&&<div className="ptag">Most Popular</div>}<div className="pamt">$9</div><div className="punit">/ month unlimited</div></div>
+        <p>Get unlimited proposals for just $9/month.<br/>Pay with USDT — works worldwide.</p>
+
+        <div className="steps">
+          ① Send $9 USDT to the address below (BEP20 network)<br/>
+          ② Send your transaction ID to Telegram<br/>
+          ③ Receive your unlock code instantly
         </div>
-        <button className="paybtn" onClick={()=>window.open(PAY_LINK,"_blank")}>Pay with Crypto →</button>
-        <div className="cnote">USDT · BTC · ETH · BNB · SOL</div>
+
+        <div className="wallet-box">
+          <span className="wallet-addr">{WALLET}</span>
+          <button className="copy-addr" onClick={copyAddr}>
+            {addrCopied?"✓ Copied!":"Copy"}
+          </button>
+        </div>
+
+        <a className="tg-link" href={TELEGRAM} target="_blank">
+          📩 Send TX proof → @jewelDark
+        </a>
+
+        <div className="divider">— Already have a code? Enter below —</div>
+
+        <div className="code-row">
+          <input
+            className="code-input"
+            placeholder="Enter unlock code..."
+            value={code}
+            onChange={e=>setCode(e.target.value)}
+            style={{borderColor:codeErr?"#d4522a":"#3a3830"}}
+          />
+          <button className="code-btn" onClick={unlock}>Unlock</button>
+        </div>
+
+        <div className="cnote">
+          {codeErr?"❌ Invalid code. Try again.":"Network: BEP20 (BSC) · $9 = unlimited access"}
+        </div>
       </div>}
 
-      <div className="footer"><span>PropCraft © 2026</span><span>Groq AI</span></div>
+      <div className="footer">
+        <span>PropCraft © 2026</span>
+        <span>Groq AI</span>
+      </div>
     </div>
   );
 }
+
 ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
 </script>
 </body>
